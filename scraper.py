@@ -47,9 +47,25 @@ def extract_next_links(url, resp):
     links = []
     for link in soup.find_all('a'):
         href = remove_fragment(link.get('href'))
-        if href and href.startswith('http'):
+        
+        #check if visited
+        if href in visited:
+            continue
+
+        if href and (href.startswith('http') or href.startswith('www')):
             links.append(href)
             visited.add(href)
+
+        if ("mailto")in href:
+            continue
+
+        # #check if relative
+        elif href and not (href.startswith('http') or ('www')in href):
+            links.append(url + href)
+
+
+    print("\n"+resp.url + "   " + url+"\n\n")
+
             
     return links
 
