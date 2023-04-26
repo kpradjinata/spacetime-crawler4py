@@ -41,6 +41,9 @@ def extract_next_links(url, resp):
 
     # Extract all of the links on the webpage
     links = []
+
+    
+
     for link in soup.find_all('a'):
         href = remove_fragment(link.get('href'))
         
@@ -52,15 +55,21 @@ def extract_next_links(url, resp):
             links.append(href)
             visited.add(href)
 
+        #sometimes emails show up as links
         if ("mailto")in href:
             continue
 
-        # #check if relative
+        
+
+        #check if relative
         elif href and not (href.startswith('http') or ('www')in href):
             links.append(url + href)
 
+        textual_content_ratio = sum(map(str.isalpha, soup)) / len(soup)
+        if textual_content_ratio < 0.2:
+            continue
 
-    print("\n"+resp.url + "   " + url+"\n\n")
+    # print("\nlinks: ", links, "\n")
 
             
     return links
