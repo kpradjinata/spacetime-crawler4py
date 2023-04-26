@@ -11,6 +11,8 @@ from urllib.parse import urldefrag
 #  is_valid filters a large number of such extensions, but there may be more
 
 visited = set()
+
+
 def scraper(url, resp):
     links = extract_next_links(url, resp)
     return [link for link in links if is_valid(link)]
@@ -28,7 +30,6 @@ def extract_next_links(url, resp):
 
     if resp.status !=200:
         return []
-    
 
 
 
@@ -36,17 +37,51 @@ def extract_next_links(url, resp):
     soup = BeautifulSoup(resp.raw_response.content, 'html.parser')
 
     # Extract the title of the webpage
-    # title = soup.title.string
+    title = soup.title.string
 
     # Extract all of the links on the webpage
     links = []
     for link in soup.find_all('a'):
         href = remove_fragment(link.get('href'))
-        if href and href.startswith('http'):
+        
+        #check if visited
+        if href in visited:
+            continue
+
+        if href and (href.startswith('http') or href.startswith('www')):
             links.append(href)
             visited.add(href)
+
+        if ("mailto")in href:
+            continue
+
+        # #check if relative
+        elif href and not (href.startswith('http') or ('www')in href):
+            links.append(url + href)
+
+
+    print("\n"+resp.url + "   " + url+"\n\n")
+
             
     return links
+
+
+
+# cparser = ConfigParser()
+# cparser.read("config.ini")
+# c = Config(cparser)
+
+# resp = download("https://www.ics.uci.edu/", c)
+
+# print(extract_next_links("https://www.ics.uci.edu/", resp))
+
+# def follow_redirects(url):
+#     response = requests.get(url, allow_redirects=False)
+#     while response.status_code in [301, 302, 303, 307, 308]:
+#         url = response.headers['location']
+#         response = requests.get(url, allow_redirects=False)
+#     return response.url, response.content
+
 
 
 def is_valid(url):
@@ -60,14 +95,23 @@ def is_valid(url):
         if parsed.scheme not in set(["http", "https"]):
             return False
         
+        #check domain
+        if not (bool(re.search("cs.uci.edu", parsed.netloc)) or bool(re.search("ics.uci.edu", parsed.netloc)) or bool(re.search("informatics.uci.edu", parsed.netloc)) or bool(re.search("stat.uci.edu", parsed.netloc))):
+            return False
         
-        # #whitelist
+        # #check if absolute url
+        # if not('www.' in url or 'http' in url):
+        #     return False
+        
+
+        # # #whitelist
         # return re.match(
 
         #     # html, txt, json(?)
-        #     r"|html|txt|json"
+        #     r".*ics.uci.edu.*$" + r".*cs.uci.edu.*$" + r".*informatics.uci.edu.*$" + r"|.*stat.uci.edu.*$" 
+        #     + r".*\.(html|txt|json)$"
         #     , parsed.path.lower()
-        # ) and url not in visited
+        # )
     
     #blacklist
         return not re.match(
@@ -78,8 +122,8 @@ def is_valid(url):
             + r"|data|dat|exe|bz2|tar|msi|bin|7z|psd|dmg|iso"
             + r"|epub|dll|cnf|tgz|sha1"
             + r"|thmx|mso|arff|rtf|jar|csv"
-            + r"|rm|smil|wmv|swf|wma|zip|rar|gz)$", parsed.path.lower()) and url not in visited
-
+            + r"|rm|smil|wmv|swf|wma|zip|rar|gz)$", parsed.path.lower())
+    
     except TypeError:
         print ("TypeError for ", parsed)
         raise
