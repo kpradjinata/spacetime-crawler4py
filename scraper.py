@@ -11,6 +11,10 @@ from urllib.parse import urldefrag
 #  is_valid filters a large number of such extensions, but there may be more
 
 visited = set()
+# word_count = {url: {word: count}}
+word_count = dict()
+
+
 def scraper(url, resp):
     links = extract_next_links(url, resp)
     return [link for link in links if is_valid(link)]
@@ -26,7 +30,8 @@ def extract_next_links(url, resp):
     #         resp.raw_response.content: the content of the page!
     # Return a list with the hyperlinks (as strings) scrapped from resp.raw_response.content
 
-    if resp.status !=200:
+
+    if not is_resp_valid(resp):
         return []
     
 
@@ -47,6 +52,33 @@ def extract_next_links(url, resp):
             visited.add(href)
             
     return links
+
+def is_resp_valid(resp):
+    # checks if response meets constraints
+    if resp.status !=200:
+        return false
+
+    # Detect and avoid dead URLs that return a 200 status but no data (click here to see what the different HTTP status codes meanLinks to an external site.)
+    # Detect and avoid sets of similar pages with no information
+    if resp.raw_response.content == None:
+        return false
+    if resp.raw_response.content == "":
+        return false
+
+    # # Detect and avoid infinite traps with redirections
+    # if resp.status in [301, 302, 303, 307, 308]:
+    #     if(resp in resp.history):
+    #         return false
+    #     for hist_content in resp.history:
+    #         hist_content = hist_content.raw_response.content
+    #         if hist_content == resp.raw_response.content:
+    #             return false
+
+    # Detect and avoid crawling very large files, especially if they have low information value
+    # ONE MEGABYTE
+
+    # Crawl all pages with high textual information content
+    # information to size ratio ( arbitrary )
 
 
 def is_valid(url):
