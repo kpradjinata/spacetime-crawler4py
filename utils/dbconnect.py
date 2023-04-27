@@ -66,9 +66,9 @@ class Sqlite_db:
             return False
         else:
             return True
-            
+
     #check if content is in the database
-    def check_dup_content(content):
+    def content_exist(content):
         self.cur.execute("SELECT * FROM visited WHERE text=?", (content,))
         if self.cur.fetchone() is None:
             return False
