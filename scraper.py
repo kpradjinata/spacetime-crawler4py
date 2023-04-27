@@ -11,7 +11,20 @@ from urllib.parse import urldefrag
 #  is_valid filters a large number of such extensions, but there may be more
 
 visited = set()
+unique_pages = 0
+longest_page = ""
+longest_page_length = 0
+word_map = {}
+subdomains = {}
 
+def sort_word_map():
+    # sort word map by value
+    sorted_word_map = sorted(word_map.items(), key=lambda x: x[1], reverse=True)
+    return sorted_word_map[0:50]
+
+def print_subdomains():
+    for subdomain, count in subdomains.items():
+        print(subdomain + " " + str(count))
 
 def scraper(url, resp):
     links = extract_next_links(url, resp)
@@ -28,8 +41,10 @@ def extract_next_links(url, resp):
     #         resp.raw_response.content: the content of the page!
     # Return a list with the hyperlinks (as strings) scrapped from resp.raw_response.content
 
-    if resp.status !=200:
+
+    if not is_resp_valid(resp):
         return []
+    
 
 
 
@@ -37,13 +52,10 @@ def extract_next_links(url, resp):
     soup = BeautifulSoup(resp.raw_response.content, 'html.parser')
 
     # Extract the title of the webpage
-    title = soup.title.string
+    # title = soup.title.string
 
     # Extract all of the links on the webpage
     links = []
-
-    
-
     for link in soup.find_all('a'):
         href = remove_fragment(link.get('href'))
         
@@ -51,47 +63,90 @@ def extract_next_links(url, resp):
         if href in visited:
             continue
 
-        if href and (href.startswith('http') or href.startswith('www')):
-            links.append(href)
-            visited.add(href)
-
-        #sometimes emails show up as links
-        if ("mailto")in href:
-            continue
-
-        
-
-        #check if relative
-        elif href and not (href.startswith('http') or ('www')in href):
-            links.append(url + href)
-
-        textual_content_ratio = sum(map(str.isalpha, soup)) / len(soup)
+        # Crawl all pages with high textual information content
+        # information to size ratio ( arbitrary )
+        textual_content_ratio = sum(map(str.isalpha, soup.get_text())) / len(soup)
         if textual_content_ratio < 0.2:
             continue
 
-    # print("\nlinks: ", links, "\n")
+        if ("mailto")in href:
+            continue
+
+        if href and (href.startswith('http') or href.startswith('www')):
+            links.append(href)
+            visited.add(href)
+            unique_pages += 1
+
+        # #check if relative
+        elif href and not (href.startswith('http') or ('www')in href):
+            links.append(url + href)
+            unique_pages += 1
+
+        # updates the longest page if needed based on word count
+        # check if all whitespace is gone
+        # "A word is a basic element of language that carries an objective or practical meaning, can be used on its own, and is uninterruptible" - Wikipedia
+        words = soup.get_text().strip().split()
+        num_words = len(soup.get_text().strip().split())
+        if num_words > longest_page_length:
+            longest_page_length = num_words
+            longest_page = href
+
+        for word in words:
+            if word in word_map:
+                word_map[word] += 1
+            else:
+                word_map[word] = 1
+
+        if "ics.uci.edu" in href:
+            index = href.index('://')
+            if href[index+3:index+7] == "www.":
+                href = href[0:index+3] + href[index+7:]
+                domain_index = href.index('ics.uci.edu')
+                subdomain = href[0:domain_index-1]
+            else:
+                domain_index = href.index('ics.uci.edu')
+                subdomain = href[0:domain_index-1]
+            if subdomain in subdomains:
+                subdomains[subdomain] += 1
+            else:
+                subdomains[subdomain] = 1
+
+        
+
+    #print("\n"+resp.url + "   " + url+"\n\n")
 
             
     return links
 
+def is_resp_valid(resp):
+    # checks if response meets constraints
+    if resp.status !=200:
+        return False
 
+    # Detect and avoid dead URLs that return a 200 status but no data (click here to see what the different HTTP status codes meanLinks to an external site.)
+    # Detect and avoid sets of similar pages with no information
+    if resp.raw_response.content == None:
+        return False
+    if resp.raw_response.content == "":
+        return False
 
-# cparser = ConfigParser()
-# cparser.read("config.ini")
-# c = Config(cparser)
+    # # Detect and avoid infinite traps with redirections
+    # if resp.status in [301, 302, 303, 307, 308]:
+    #     if(resp in resp.history):
+    #         return false
+    #     for hist_content in resp.history:
+    #         hist_content = hist_content.raw_response.content
+    #         if hist_content == resp.raw_response.content:
+    #             return false
 
-# resp = download("https://www.ics.uci.edu/", c)
+    # Detect and avoid crawling very large files, especially if they have low information value
+    # FIVE MEGABYTE
+    content_length = int(resp.raw_response.content.headers.get('content-length'))
+    # 5mb
+    if int(content_length) > 1024*1024*5000:
+        return False
 
-# print(extract_next_links("https://www.ics.uci.edu/", resp))
-
-# def follow_redirects(url):
-#     response = requests.get(url, allow_redirects=False)
-#     while response.status_code in [301, 302, 303, 307, 308]:
-#         url = response.headers['location']
-#         response = requests.get(url, allow_redirects=False)
-#     return response.url, response.content
-
-
+    return True
 
 def is_valid(url):
     # Decide whether to crawl this url or not. 
@@ -104,23 +159,14 @@ def is_valid(url):
         if parsed.scheme not in set(["http", "https"]):
             return False
         
-        #check domain
-        if not (bool(re.search("cs.uci.edu", parsed.netloc)) or bool(re.search("ics.uci.edu", parsed.netloc)) or bool(re.search("informatics.uci.edu", parsed.netloc)) or bool(re.search("stat.uci.edu", parsed.netloc))):
-            return False
         
-        # #check if absolute url
-        # if not('www.' in url or 'http' in url):
-        #     return False
-        
-
-        # # #whitelist
+        # #whitelist
         # return re.match(
 
         #     # html, txt, json(?)
-        #     r".*ics.uci.edu.*$" + r".*cs.uci.edu.*$" + r".*informatics.uci.edu.*$" + r"|.*stat.uci.edu.*$" 
-        #     + r".*\.(html|txt|json)$"
+        #     r"|html|txt|json"
         #     , parsed.path.lower()
-        # )
+        # ) and url not in visited
     
     #blacklist
         return not re.match(
@@ -131,8 +177,8 @@ def is_valid(url):
             + r"|data|dat|exe|bz2|tar|msi|bin|7z|psd|dmg|iso"
             + r"|epub|dll|cnf|tgz|sha1"
             + r"|thmx|mso|arff|rtf|jar|csv"
-            + r"|rm|smil|wmv|swf|wma|zip|rar|gz)$", parsed.path.lower())
-    
+            + r"|rm|smil|wmv|swf|wma|zip|rar|gz)$", parsed.path.lower()) and url not in visited
+
     except TypeError:
         print ("TypeError for ", parsed)
         raise
