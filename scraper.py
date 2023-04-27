@@ -10,6 +10,7 @@ from urllib.parse import urldefrag
 # Detect and avoid crawling very large files, especially if they have low information value
 #  is_valid filters a large number of such extensions, but there may be more
 
+#global variables
 visited = set()
 unique_pages = 0
 longest_page = ""
@@ -26,9 +27,47 @@ def print_subdomains():
     for subdomain, count in subdomains.items():
         print(subdomain + " " + str(count))
 
+def check_longest(soup, href):
+    #checks whitespace in url
+    words = soup.get_text().strip().split()
+    num_words = len(soup.get_text().strip().split())
+    #updates longest
+    if num_words > longest_page_length:
+        longest_page_length = num_words
+        longest_page = href
+
+    for word in words:
+        if word in word_map:
+            word_map[word] += 1
+        else:
+            word_map[word] = 1
+
+
+    #checks subdomains for proper format
+    if "ics.uci.edu" in href:
+        index = href.index('://')
+        if href[index+3:index+7] == "www.":
+            href = href[0:index+3] + href[index+7:]
+            domain_index = href.index('ics.uci.edu')
+            subdomain = href[0:domain_index-1]
+        else:
+            domain_index = href.index('ics.uci.edu')
+            subdomain = href[0:domain_index-1]
+        if subdomain in subdomains:
+            subdomains[subdomain] += 1
+        else:
+            subdomains[subdomain] = 1
+
 def scraper(url, resp):
     links = extract_next_links(url, resp)
     return [link for link in links if is_valid(link)]
+
+#checks the ratio of the information to file size
+def ratio_info(soup):
+    # Crawl all pages with high textual information content
+    # information to size ratio ( arbitrary )
+    textual_content_ratio = sum(map(str.isalpha, soup.get_text())) / len(soup)
+    return textual_content_ratio > 0.2
 
 def extract_next_links(url, resp):
     # Implementation required.
@@ -62,22 +101,22 @@ def extract_next_links(url, resp):
         #check if visited
         if href in visited:
             continue
-
-        # Crawl all pages with high textual information content
-        # information to size ratio ( arbitrary )
-        textual_content_ratio = sum(map(str.isalpha, soup.get_text())) / len(soup)
-        if textual_content_ratio < 0.2:
+        
+        #check if ratio is good
+        if ratio_info(soup):
             continue
 
+        #check if mailto
         if ("mailto")in href:
             continue
 
+        #check if absolute url
         if href and (href.startswith('http') or href.startswith('www')):
             links.append(href)
             visited.add(href)
             unique_pages += 1
 
-        # #check if relative
+        #check if relative
         elif href and not (href.startswith('http') or ('www')in href):
             links.append(url + href)
             unique_pages += 1
@@ -85,31 +124,8 @@ def extract_next_links(url, resp):
         # updates the longest page if needed based on word count
         # check if all whitespace is gone
         # "A word is a basic element of language that carries an objective or practical meaning, can be used on its own, and is uninterruptible" - Wikipedia
-        words = soup.get_text().strip().split()
-        num_words = len(soup.get_text().strip().split())
-        if num_words > longest_page_length:
-            longest_page_length = num_words
-            longest_page = href
-
-        for word in words:
-            if word in word_map:
-                word_map[word] += 1
-            else:
-                word_map[word] = 1
-
-        if "ics.uci.edu" in href:
-            index = href.index('://')
-            if href[index+3:index+7] == "www.":
-                href = href[0:index+3] + href[index+7:]
-                domain_index = href.index('ics.uci.edu')
-                subdomain = href[0:domain_index-1]
-            else:
-                domain_index = href.index('ics.uci.edu')
-                subdomain = href[0:domain_index-1]
-            if subdomain in subdomains:
-                subdomains[subdomain] += 1
-            else:
-                subdomains[subdomain] = 1
+        check_longest(soup, href)
+        
 
         
 
@@ -129,18 +145,9 @@ def is_resp_valid(resp):
         return False
     if resp.raw_response.content == "":
         return False
-
-    # # Detect and avoid infinite traps with redirections
-    # if resp.status in [301, 302, 303, 307, 308]:
-    #     if(resp in resp.history):
-    #         return false
-    #     for hist_content in resp.history:
-    #         hist_content = hist_content.raw_response.content
-    #         if hist_content == resp.raw_response.content:
-    #             return false
+    
 
     # Detect and avoid crawling very large files, especially if they have low information value
-    # FIVE MEGABYTE
     content_length = int(resp.raw_response.content.headers.get('content-length'))
     # 5mb
     if int(content_length) > 1024*1024*5000:
