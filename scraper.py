@@ -2,6 +2,11 @@ import re
 from urllib.parse import urlparse
 from bs4 import BeautifulSoup
 from urllib.parse import urldefrag
+import numpy as np
+from numpy.linalg import norm
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+
 
 # extract link
 # is valid
@@ -11,16 +16,24 @@ from urllib.parse import urldefrag
 #  is_valid filters a large number of such extensions, but there may be more
 
 #global variables
+global similar
+similar = []
 global visited
 visited = set()
-# unique_pages = 0
-# longest_page = ""
-# longest_page_length = 0
-# word_map = {}
-# subdomains = {}
+global unique_pages
+unique_pages = 0
+global longest_page
+longest_page = ""
+global longest_page_length
+longest_page_length = 0
+global word_map
+word_map = {}
+global subdomains
+subdomains = {}
 
 
 def sort_word_map():
+    global word_map
     # sort word map by value
     sorted_word_map = sorted(word_map.items(), key=lambda x: x[1], reverse=True)
     return sorted_word_map[0:50]
@@ -30,6 +43,9 @@ def print_subdomains():
         print(subdomain + " " + str(count))
 
 def check_longest(soup, href):
+    global longest_page_length
+    global longest_page
+    global word_map
     #checks whitespace in url
     words = soup.get_text().strip().split()
     num_words = len(soup.get_text().strip().split())
@@ -40,13 +56,14 @@ def check_longest(soup, href):
 
     for word in words:
         if word in word_map:
-            word_map[word] += 1
+            word_map[word] += 1 
         else:
             word_map[word] = 1
 
 
     #checks subdomains for proper format
     if "ics.uci.edu" in href:
+        print(href)
         index = href.index('://')
         if href[index+3:index+7] == "www.":
             href = href[0:index+3] + href[index+7:]
@@ -73,9 +90,10 @@ def ratio_info(resp, soup):
 
     #average is 15%
     #10% will ensure 75% of websites are scraped
-    return textual_content_ratio > 0
+    return textual_content_ratio > 0.1
 
 def extract_next_links(url, resp):
+    global unique_pages
     # Implementation required.
     # url: the URL that was used to get the page
     # resp.url: the actual url of the page
@@ -87,8 +105,6 @@ def extract_next_links(url, resp):
     # Return a list with the hyperlinks (as strings) scrapped from resp.raw_response.content
     if resp.status !=200:
         return []
-    
-
 
     
 
@@ -99,7 +115,11 @@ def extract_next_links(url, resp):
 
     if not is_resp_valid(resp,soup):
         return []
-    # #check if ratio is good
+
+    if resp.url in visited:
+        print("Already visited\n\n\n\n\n")
+        return []
+    visited.add(resp.url)
 
 
     # Extract the title of the webpage
@@ -109,29 +129,43 @@ def extract_next_links(url, resp):
     links = []
     for link in soup.find_all('a', href = True):
         href = remove_fragment(link['href'])
+        parse = urlparse(url)
 
 
-        
 
         #check if mailto
         if href and ("mailto")in href:
             continue
 
         #check if absolute url
-        if href and (href.startswith('http') or href.startswith('www')):
+
+        if href and (href.startswith("http")):
             links.append(href)
-            # unique_pages += 1
+            unique_pages += 1
+
+        elif href.startswith("www."):
+            href = parse.scheme+'://'+href
+            unique_pages += 1
+
+        elif href.startswith("/www."):
+            href = parse.scheme+':/'+href
+            unique_pages += 1
+
+        elif href.startswith("//www."):
+            href = parse.scheme+":"+href
+            unique_pages += 1
 
         #check if relative
         elif href and not (href.startswith('http') or ('www')in href):
             # print("---------- url", url,"href",href,"Bombo", url + href)
-            links.append(url + href)
-            # unique_pages += 1
+            href = url + href
+            links.append(href)
+            unique_pages += 1
 
         # updates the longest page if needed based on word count
         # check if all whitespace is gone
         # "A word is a basic element of language that carries an objective or practical meaning, can be used on its own, and is uninterruptible" - Wikipedia
-        # check_longest(soup, href)
+        check_longest(soup, href)
         
 
         
@@ -159,6 +193,23 @@ def is_resp_valid(resp,soup):
     # 5mb
     if int(content_length) > 1024*1024*5000:
         return False
+    
+    # #Similarity detection
+    content = np.array(soup.get_text().split())
+    if len(similar) == 0:
+        similar.append(content)
+    else:
+        for i in similar:
+
+            vectorizer = TfidfVectorizer()
+            vectors = vectorizer.fit_transform([",".join(content), ",".join(i)]).toarray()
+
+            # Compute the cosine similarity between the two vectors
+            cos = cosine_similarity([vectors[0]], [vectors[1]])
+            if cos[0][0] > 0.9:
+                return False
+
+        similar.append(content)
 
     return True
 

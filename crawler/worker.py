@@ -18,6 +18,7 @@ class Worker(Thread):
         super().__init__(daemon=True)
         
     def run(self):
+        count =0
         while True:
             tbd_url = self.frontier.get_tbd_url()
             if not tbd_url:
@@ -32,4 +33,11 @@ class Worker(Thread):
                 self.frontier.add_url(scraped_url)
             self.frontier.mark_url_complete(tbd_url)
             time.sleep(self.config.time_delay)
+            count+=1
+            if count == 20:
+                scraper.print_subdomains()
+                print(scraper.sort_word_map())
+                print(scraper.longest_page)
+                print(scraper.unique_pages)
+                break
 
