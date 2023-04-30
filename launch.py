@@ -4,9 +4,11 @@ from argparse import ArgumentParser
 from utils.server_registration import get_cache_server
 from utils.config import Config
 from crawler import Crawler
-
+from utils.dbconnect import Sqlite_db
 
 def main(config_file, restart):
+    mydb = Sqlite_db()
+    mydb.reset_db()
     cparser = ConfigParser()
     cparser.read(config_file)
     config = Config(cparser)

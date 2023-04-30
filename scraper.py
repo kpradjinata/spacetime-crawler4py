@@ -33,8 +33,6 @@ Basically, to make a multithreaded crawler, you will need to:
     4 If your multithreaded crawler is knocking down the server, you may be penalized, so make sure you keep it polite
         (and note that it makes no sense to use a too large number of threads due to the politeness rule that you MUST obey).
 """
-mydb = Sqlite_db()
-mydb.reset_db()
 global web2lowerset
 web2lowerset = get_english_words_set(['web2'], lower=True)
 
@@ -82,9 +80,6 @@ def extract_next_links(url, resp):
     # Parse the HTML content of the webpage using Beautiful Soup
     soup = BeautifulSoup(resp.raw_response.content, 'html.parser')
 
-    # Extract the title of the webpage
-    # title = soup.title.string
-
     # Extract all of the links on the webpage
     links = []
     for link in soup.find_all('a'):
@@ -92,7 +87,6 @@ def extract_next_links(url, resp):
         parse = urlparse(url)
         link_signal = False
         page_text = soup.get_text().strip()
-
 
         #check if visited
         if mydb.check_visited_url(href):
@@ -138,7 +132,7 @@ def extract_next_links(url, resp):
 
             for word in words:
                 mydb.add_word_count(word)
-
+    print("---------- url", url,"href",href,"Bombo", url + href)
     return links
 
 def is_resp_valid(resp):
