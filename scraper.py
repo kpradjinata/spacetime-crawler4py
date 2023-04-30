@@ -103,7 +103,7 @@ def extract_next_links(url, resp):
         if not ratio_info(resp, soup):
             continue
         #check if mailto
-        if href and ("mailto")in href:
+        if href and ("mailto".encode())in href:
             continue
 
         #check if absolute url
