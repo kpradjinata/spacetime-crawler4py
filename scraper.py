@@ -33,6 +33,7 @@ Basically, to make a multithreaded crawler, you will need to:
     4 If your multithreaded crawler is knocking down the server, you may be penalized, so make sure you keep it polite
         (and note that it makes no sense to use a too large number of threads due to the politeness rule that you MUST obey).
 """
+mydb = Sqlite_db()
 global web2lowerset
 web2lowerset = get_english_words_set(['web2'], lower=True)
 
@@ -132,7 +133,9 @@ def extract_next_links(url, resp):
 
             for word in words:
                 mydb.add_word_count(word)
-    print("---------- url", url,"href",href,"Bombo", url + href)
+    #print links with url
+    print("url", url, "links", links)
+
     return links
 
 def is_resp_valid(resp):
@@ -150,6 +153,7 @@ def is_resp_valid(resp):
     # # Detect and avoid infinite traps with redirections
     if(resp.status in [301, 302, 303, 307, 308]):
         if(mydb.content_exist(resp.raw_response.content)):
+            print("content exist")
             return False
 
     # Detect and avoid crawling very large files, especially if they have low information value

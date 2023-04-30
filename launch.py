@@ -7,8 +7,8 @@ from crawler import Crawler
 from utils.dbconnect import Sqlite_db
 
 def main(config_file, restart):
-    mydb = Sqlite_db()
-    mydb.reset_db()
+    resetdb = Sqlite_db()
+    resetdb.reset_db()
     cparser = ConfigParser()
     cparser.read(config_file)
     config = Config(cparser)
