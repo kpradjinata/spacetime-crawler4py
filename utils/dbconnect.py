@@ -6,7 +6,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 
 class Sqlite_db:
     def __init__(self):
-        self.con = sqlite3.connect("mydb.db")
+        self.con = sqlite3.connect("mydb.db", check_same_thread=False)
         self.cur = self.con.cursor()
 
 #data editorial functions
