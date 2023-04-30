@@ -1,4 +1,8 @@
 import sqlite3
+import numpy as np
+from numpy.linalg import norm
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
 
 class Sqlite_db:
     def __init__(self):
@@ -61,18 +65,40 @@ class Sqlite_db:
         return self.cur.fetchone()[0]
 
     #check if url is in the database
-    def check_url(self, url):
+    def check_visited_url(self, url):
         self.cur.execute("SELECT * FROM visited WHERE url=?", (url,))
         if self.cur.fetchone() is None:
-            return False
-        else:
             return True
+        else:
+            return False
 
-    #check if content is in the database
+    #check if similar content is in the database using cosine similarity
     def content_exist(self, content):
-        self.cur.execute("SELECT * FROM visited WHERE text=?", (content,))
-        if self.cur.fetchone() is None:
-            return False
-        else:
+        self.cur.execute("SELECT text FROM visited")
+        contents = self.cur.fetchall()
+        contents = [c[0] for c in contents]
+        contents.append(content)
+        vectorizer = TfidfVectorizer()
+        vectors = vectorizer.fit_transform(contents)
+        similarity = cosine_similarity(vectors[-1], vectors[:-1])
+        if np.amax(similarity) > 0.9:
             return True
+        else:
+            return False
     
+    #count number of subdomains of ics.uci.edu from database, and print sumber of subdomains of each subdomain
+    def count_subdomains(self):
+        self.cur.execute("SELECT * FROM visited WHERE url LIKE '%ics.uci.edu%'")
+        ics_urls = self.cur.fetchall()
+        subdomains = {}
+        for url in ics_urls:
+            subdomain = url[0].split("/")[2]
+            if subdomain not in subdomains:
+                subdomains[subdomain] = 1
+            else:
+                subdomains[subdomain] += 1
+        #print subdomains and their counts
+        for subdomain in subdomains:
+            print(subdomain, subdomains[subdomain])
+
+        return subdomains

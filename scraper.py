@@ -3,6 +3,11 @@ from urllib.parse import urlparse
 from bs4 import BeautifulSoup
 from urllib.parse import urldefrag
 from utils.dbconnect import Sqlite_db
+import numpy as np
+from numpy.linalg import norm
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+from english_words import get_english_words_set
 
 # extract link
 # is valid
@@ -30,6 +35,15 @@ Basically, to make a multithreaded crawler, you will need to:
 """
 mydb = Sqlite_db()
 mydb.reset_db()
+global web2lowerset
+web2lowerset = get_english_words_set(['web2'], lower=True)
+
+#check if more than 90% of words in page are valid
+def is_words_in_page_valid(words):
+    y =  np.isin(words.lower(), web2lowerset)
+    if np.mean(y) > 0.9:
+        return True
+    return False
 
 def sort_word_map():
     # sort word map by value
@@ -39,6 +53,13 @@ def sort_word_map():
 def print_subdomains():
     for subdomain, count in subdomains.items():
         print(subdomain + " " + str(count))
+
+#average is 15%
+#10% will ensure 75% of websites are scraped
+# Crawl all pages with high textual information content
+def ratio_info(resp, soup):
+    textual_content_ratio = len(soup.get_text()) / len(resp.raw_response.content)
+    return textual_content_ratio > 0.1
 
 def scraper(url, resp):
     links = extract_next_links(url, resp)
@@ -55,8 +76,7 @@ def extract_next_links(url, resp):
     #         resp.raw_response.content: the content of the page!
     # Return a list with the hyperlinks (as strings) scrapped from resp.raw_response.content
 
-
-    if not is_resp_valid(resp):
+    if mydb.check_visited_url(url):
         return []
     
     # Parse the HTML content of the webpage using Beautiful Soup
@@ -69,26 +89,41 @@ def extract_next_links(url, resp):
     links = []
     for link in soup.find_all('a'):
         href = remove_fragment(link.get('href'))
+        parse = urlparse(url)
         link_signal = False
         page_text = soup.get_text().strip()
+
+
         #check if visited
-        if href in visited:
+        if mydb.check_visited_url(href):
             continue
 
         # Crawl all pages with high textual information content
         # information to size ratio ( arbitrary )
-        textual_content_ratio = sum(map(str.isalpha, page_text)) / len(soup)
-        if textual_content_ratio < 0.2:
+        if not ratio_info(resp, soup):
+            continue
+        #check if mailto
+        if href and ("mailto")in href:
             continue
 
-        if ("mailto")in href:
-            continue
+        #check if absolute url
 
-        if href and (href.startswith('http') or href.startswith('www')):
+        if href and (href.startswith("http")):link_signal = True
+        elif href.startswith("www."):
+            href = parse.scheme+'://'+href
             link_signal = True
-        # #check if relative
-            """? why www in href instead of startswith('www') ?"""
-        elif href and not (href.startswith('http') or ('www')in href): 
+
+        elif href.startswith("/www."):
+            href = parse.scheme+':/'+href
+            link_signal = True
+
+        elif href.startswith("//www."):
+            href = parse.scheme+":"+href
+            link_signal = True
+
+        #check if relative
+        elif href and not (href.startswith('http') or ('www')in href):
+            # print("---------- url", url,"href",href,"Bombo", url + href)
             href = url + href
             link_signal = True
         
@@ -99,30 +134,10 @@ def extract_next_links(url, resp):
             words = page_text.split()
             num_words = len(words)
             links.append(href)
-                """
-                using page_text instead of resp.raw_response.content can save storage and accuracy
-                but don't want to call twice at is_resp_valid and extract_next_links
-                neither want to call before checking if link is valid
-                """
             mydb.add_url(href, resp.raw_response.content, num_words)
 
             for word in words:
                 mydb.add_word_count(word)
-
-                """
-                we can enhance crawling speed if we can move this out to report function,
-                only using unique urls to count subdomains of ics.uci.edu
-                """
-            if "ics.uci.edu" in href:
-                index = href.index('://')
-                domain_index = href.index('ics.uci.edu')
-                if href[index+3:index+7] == "www.":
-                    href = href[0:index+3] + href[index+7:]
-                    subdomain = href[0:domain_index-1]
-                else:
-                    subdomain = href[0:domain_index-1]
-
-                mydb.insert_subdomain(subdomain)
 
     return links
 
@@ -142,13 +157,6 @@ def is_resp_valid(resp):
     if(resp.status in [301, 302, 303, 307, 308]):
         if(mydb.content_exist(resp.raw_response.content)):
             return False
-    # if resp.status in [301, 302, 303, 307, 308]:
-    #     if(resp in resp.history):
-    #         return false
-    #     for hist_content in resp.history:
-    #         hist_content = hist_content.raw_response.content
-    #         if hist_content == resp.raw_response.content:
-    #             return false
 
     # Detect and avoid crawling very large files, especially if they have low information value
     # FIVE MEGABYTE
