@@ -76,6 +76,9 @@ class Sqlite_db:
     def content_exist(self, content):
         self.cur.execute("SELECT text FROM visited")
         contents = self.cur.fetchall()
+        if len(contents) == 0:
+            return False
+        
         contents = [c[0] for c in contents]
         contents.append(content)
         vectorizer = TfidfVectorizer()
