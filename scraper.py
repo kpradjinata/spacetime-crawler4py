@@ -48,7 +48,10 @@ def extract_next_links(url, resp):
     #         resp.raw_response.url: the url, again
     #         resp.raw_response.content: the content of the page!
     # Return a list with the hyperlinks (as strings) scrapped from resp.raw_response.content
-    if(resp == None):
+    if resp == None:
+        return []
+    
+    if(resp.raw_response == None or resp.raw_response.content == None):
         return []
     
     if mydb.check_visited_url(url):
