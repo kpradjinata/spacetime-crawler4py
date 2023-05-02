@@ -61,7 +61,7 @@ def extract_next_links(url, resp):
     if not is_resp_valid(resp, page_text):
         return []
 
-    mydb.add_url(href, page_text, num_words)
+    mydb.add_url(url, page_text, num_words)
     words_counter = Counter(np.char.lower(words))
 
     for word in words_counter:
