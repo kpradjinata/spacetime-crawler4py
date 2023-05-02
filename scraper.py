@@ -69,7 +69,7 @@ def extract_next_links(url, resp):
 
     # Extract all of the links on the webpage
     links = []
-    for link in soup.find_all('a'):
+    for link in soup.find_all('a', href = True):
         href = remove_fragment(link['href'])
         parse = urlparse(url)
         link_signal = True
