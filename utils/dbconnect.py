@@ -30,12 +30,12 @@ class Sqlite_db:
 
     #add a count to word in the database unique table word_count, create new if not exists
     #columns are word and count
-    def add_word_count(self, word):
-        self.cur.execute("SELECT * FROM word_count WHERE word=?", (word,))
+    def add_word_count(self, word, count):
+        self.cur.execute("SELECT * FROM word_count WHERE word=? LIMIT 1", (word,))
         if self.cur.fetchone() is None:
-            self.cur.execute("INSERT INTO word_count VALUES (?, 1)", (word,))
+            self.cur.execute("INSERT INTO word_count VALUES (?, ?)", (word, count))
         else:
-            self.cur.execute("UPDATE word_count SET count=count+1 WHERE word=?", (word,))
+            self.cur.execute("UPDATE word_count SET count=count+? WHERE word=?", (count, word))
         self.con.commit()
 
     #add subdomain and count to database
@@ -64,13 +64,13 @@ class Sqlite_db:
         self.cur.execute("SELECT COUNT(*) FROM visited")
         return self.cur.fetchone()[0]
 
-    #check if url is in the database
+    #check if url is in the database, select top one
     def check_visited_url(self, url):
-        self.cur.execute("SELECT * FROM visited WHERE url=?", (url,))
+        self.cur.execute("SELECT * FROM visited WHERE url=? LIMIT 1", (url,))
         if self.cur.fetchone() is None:
-            return True
-        else:
             return False
+        else:
+            return True
 
     #check if similar content is in the database using cosine similarity
     def content_exist(self, content):

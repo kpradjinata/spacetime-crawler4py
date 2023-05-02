@@ -8,6 +8,7 @@ from numpy.linalg import norm
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 from english_words import get_english_words_set
+from collections import Counter
 
 # extract link
 # is valid
@@ -15,50 +16,23 @@ from english_words import get_english_words_set
 # It is important to filter out urls that are not with ics.uci.edu domain.
 # Detect and avoid crawling very large files, especially if they have low information value
 #  is_valid filters a large number of such extensions, but there may be more
-"""
-To do:
-(+1 points) Implement checks and usage of the robots and sitemap files.
 
-(+2 points) Implement exact and near webpage similarity detection using the methods discussed in the lecture.
- Your implementation must be made from scratch, no libraries are allowed.
-
-(+5 points) Make the crawler multithreaded
-However, your multithreaded crawler MUST obey the politeness rule: two or more requests to the same domain, possibly from separate threads,
-must have a delay of 500ms (this is more tricky than it seems!).
-To do this part of the extra credit, you should read the "Architecture" section of the README.md file.
-Basically, to make a multithreaded crawler, you will need to:
-    1 Reimplement the Frontier so that it's thread-safe and so that it makes politeness per domain easy to manage
-    2 Reimplement the Worker thread so that it's politeness-safe
-    3 Set the THREADCOUNT variable in Config.ini to whatever number of threads you want
-    4 If your multithreaded crawler is knocking down the server, you may be penalized, so make sure you keep it polite
-        (and note that it makes no sense to use a too large number of threads due to the politeness rule that you MUST obey).
-"""
 mydb = Sqlite_db()
 global web2lowerset
 web2lowerset = get_english_words_set(['web2'], lower=True)
+web2lowerset = np.array(list(web2lowerset))
 
-#check if more than 90% of words in page are valid
+#check if more than 90% of words in page are in web2 dictionary
 def is_words_in_page_valid(words):
-    y =  np.isin(words.lower(), web2lowerset)
+    y =  np.isin(np.char.lower(words), web2lowerset)
     if np.mean(y) > 0.9:
         return True
     return False
 
-def sort_word_map():
-    # sort word map by value
-    sorted_word_map = sorted(word_map.items(), key=lambda x: x[1], reverse=True)
-    return sorted_word_map[0:50]
-
-def print_subdomains():
-    for subdomain, count in subdomains.items():
-        print(subdomain + " " + str(count))
-
 #average is 15%
 #10% will ensure 75% of websites are scraped
 # Crawl all pages with high textual information content
-def ratio_info(resp, soup):
-    textual_content_ratio = len(soup.get_text()) / len(resp.raw_response.content)
-    return textual_content_ratio > 0.1
+
 
 def scraper(url, resp):
     links = extract_next_links(url, resp)
@@ -74,95 +48,91 @@ def extract_next_links(url, resp):
     #         resp.raw_response.url: the url, again
     #         resp.raw_response.content: the content of the page!
     # Return a list with the hyperlinks (as strings) scrapped from resp.raw_response.content
-
+   
     if mydb.check_visited_url(url):
         return []
-    
+
     # Parse the HTML content of the webpage using Beautiful Soup
     soup = BeautifulSoup(resp.raw_response.content, 'html.parser')
+    page_text = soup.get_text().strip()
+    words = page_text.split()
+    num_words = len(words)
+
+    if not is_resp_valid(resp, page_text):
+        return []
+
+    mydb.add_url(href, page_text, num_words)
+    words_counter = Counter(np.char.lower(words))
+
+    for word in words_counter:
+        mydb.add_word_count(word, words_counter[word])
 
     # Extract all of the links on the webpage
     links = []
     for link in soup.find_all('a'):
         href = remove_fragment(link.get('href'))
         parse = urlparse(url)
-        link_signal = False
-        page_text = soup.get_text().strip()
-
-        #check if visited
-        if mydb.check_visited_url(href):
-            continue
+        link_signal = True
 
         # Crawl all pages with high textual information content
-        # information to size ratio ( arbitrary )
-        if not ratio_info(resp, soup):
-            continue
+
         #check if mailto
-        if href and ("mailto".encode())in href:
+        if href and ("mailto")in href:
             continue
 
         #check if absolute url
 
-        if href and (href.startswith("http")):link_signal = True
+        if href and (href.startswith("http")):
+            pass
         elif href.startswith("www."):
             href = parse.scheme+'://'+href
-            link_signal = True
-
         elif href.startswith("/www."):
             href = parse.scheme+':/'+href
-            link_signal = True
-
         elif href.startswith("//www."):
             href = parse.scheme+":"+href
-            link_signal = True
-
         #check if relative
         elif href and not (href.startswith('http') or ('www')in href):
             # print("---------- url", url,"href",href,"Bombo", url + href)
             href = url + href
-            link_signal = True
-        
+        else:
+            link_signal = False
+
         # updates the longest page if needed based on word count
         # check if all whitespace is gone
         # "A word is a basic element of language that carries an objective or practical meaning, can be used on its own, and is uninterruptible" - Wikipedia
         if link_signal:
-            words = page_text.split()
-            num_words = len(words)
             links.append(href)
-            mydb.add_url(href, resp.raw_response.content, num_words)
-
-            for word in words:
-                mydb.add_word_count(word)
-    #print links with url
-    print("url", url, "links", links)
 
     return links
 
-def is_resp_valid(resp):
+def is_resp_valid(resp, page_text):
     # checks if response meets constraints
     if resp.status !=200:
         return False
 
     # Detect and avoid dead URLs that return a 200 status but no data (click here to see what the different HTTP status codes meanLinks to an external site.)
     # Detect and avoid sets of similar pages with no information
-    if resp.raw_response.content == None:
+    if page_text == None:
         return False
-    if resp.raw_response.content == "":
+    if page_text == "":
         return False
-
-    # # Detect and avoid infinite traps with redirections
-    if(resp.status in [301, 302, 303, 307, 308]):
-        if(mydb.content_exist(resp.raw_response.content)):
-            print("content exist")
-            return False
+    
+    # Detect and avoid crawling very large files, especially if they have low information value
+    textual_content_ratio = len(page_text) / len(resp.raw_response.content)
+    if(textual_content_ratio < 0.1):
+        return False
 
     # Detect and avoid crawling very large files, especially if they have low information value
     # FIVE MEGABYTE
-    content_length = int(resp.raw_response.content.headers.get('content-length'))
+    content_length = len(page_text)
     # 5mb
     if int(content_length) > 1024*1024*5000:
         return False
-
+    
+    # Detect and avoid infinite traps (e.g., Calendar)
+    if(mydb.content_exist(page_text)):
+        return False
+    
     return True
 
 def is_valid(url):
@@ -176,7 +146,9 @@ def is_valid(url):
         if parsed.scheme not in set(["http", "https"]):
             return False
         
-        
+        if not( "cs.uci.edu" in url or "informatics.uci.edu" in url or "stat.uci.edu" in url or "ics.uci.edu" in url):
+            return False
+    
         # #whitelist
         # return re.match(
 
@@ -194,7 +166,7 @@ def is_valid(url):
             + r"|data|dat|exe|bz2|tar|msi|bin|7z|psd|dmg|iso"
             + r"|epub|dll|cnf|tgz|sha1"
             + r"|thmx|mso|arff|rtf|jar|csv"
-            + r"|rm|smil|wmv|swf|wma|zip|rar|gz)$", parsed.path.lower())# and url not in visited
+            + r"|rm|smil|wmv|swf|wma|zip|rar|gz)$", parsed.path.lower())
 
     except TypeError:
         print ("TypeError for ", parsed)

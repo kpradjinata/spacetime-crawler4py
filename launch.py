@@ -8,7 +8,8 @@ from utils.dbconnect import Sqlite_db
 
 def main(config_file, restart):
     resetdb = Sqlite_db()
-    resetdb.reset_db()
+    if restart:
+        resetdb.reset_db()
     cparser = ConfigParser()
     cparser.read(config_file)
     config = Config(cparser)
