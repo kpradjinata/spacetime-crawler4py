@@ -16,9 +16,11 @@ class Sqlite_db:
         self.cur.execute("DROP TABLE IF EXISTS visited")
         self.cur.execute("DROP TABLE IF EXISTS word_count")
         self.cur.execute("DROP TABLE IF EXISTS subdomains")
+        self.cur.execute("DROP TABLE IF EXISTS blacklist")
         self.cur.execute("CREATE TABLE IF NOT EXISTS subdomains (subdomain TEXT PRIMARY KEY, count INTEGER)")
         self.cur.execute("CREATE TABLE IF NOT EXISTS word_count (word TEXT PRIMARY KEY, count INTEGER)")
         self.cur.execute("CREATE TABLE IF NOT EXISTS visited (url TEXT PRIMARY KEY, text TEXT, num_words INTEGER)")
+        self.cur.execute("CREATE TABLE IF NOT EXISTS blacklist (url TEXT PRIMARY KEY)")
         self.con.commit()
 
     #add a url to the database unique table visited, create new if not exists
@@ -45,6 +47,12 @@ class Sqlite_db:
             self.cur.execute("INSERT INTO subdomains VALUES (?, 1)", (subdomain,))
         else:
             self.cur.execute("UPDATE subdomains SET count=count+1 WHERE subdomain=?", (subdomain,))
+        self.con.commit()
+
+    #blacklist a url that generats same content with a different url
+    def add_blacklist_url(self, url):
+        url = '/'.join(url.split("/")[:-1])
+        self.cur.execute("INSERT OR IGNORE INTO blacklist VALUES (?)", (url,))
         self.con.commit()
     
 #below are report functions
@@ -91,7 +99,7 @@ class Sqlite_db:
     
     #count number of subdomains of ics.uci.edu from database, and print sumber of subdomains of each subdomain
     def count_subdomains(self):
-        self.cur.execute("SELECT * FROM visited WHERE url LIKE '%ics.uci.edu%'")
+        self.cur.execute("SELECT * FROM visited WHERE url LIKE '%.ics.uci.edu%'")
         ics_urls = self.cur.fetchall()
         subdomains = {}
         for url in ics_urls:
@@ -105,3 +113,12 @@ class Sqlite_db:
             print(subdomain, subdomains[subdomain])
 
         return subdomains
+    
+    #check if url is generated from blacklisted url
+    def is_blacklisted_url(self, url):
+        url = '/'.join(url.split("/")[:-1])
+        self.cur.execute("SELECT * FROM blacklist WHERE url=? LIMIT 1", (url,))
+        if self.cur.fetchone() is None:
+            return False
+        else:
+            return True
