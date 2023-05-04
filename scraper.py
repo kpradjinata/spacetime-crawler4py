@@ -56,6 +56,11 @@ def extract_next_links(url, resp):
     
     if mydb.check_visited_url(url):
         return []
+    
+    parsed_url_query_list = urlparse(url).query.split('/')
+    parsed_url_query_counter = Counter(parsed_url_query_list)
+    if parsed_url_query_counter[max(parsed_url_query_counter)] > 3:
+        return []
 
     # Parse the HTML content of the webpage using Beautiful Soup
     soup = BeautifulSoup(resp.raw_response.content, 'html.parser')
@@ -148,6 +153,11 @@ def is_valid(url):
     
     try:
         parsed = urlparse(url)
+        parsed_url_query_list = parsed.query.split('/')
+        parsed_url_query_counter = Counter(parsed_url_query_list)
+        if parsed_url_query_counter[max(parsed_url_query_counter)] > 3:
+            return False
+        
         if parsed.scheme not in set(["http", "https"]):
             return False
         
