@@ -140,7 +140,9 @@ def is_resp_valid(resp, page_text):
         return False
     
     # Detect and avoid infinite traps (e.g., Calendar)
+    # Blacklist the url that generated this path
     if(mydb.content_exist(page_text)):
+        mydb.add_blacklist_url(resp.url)
         return False
     
     return True
@@ -155,6 +157,8 @@ def is_valid(url):
         parsed = urlparse(url)
         parsed_url_query_list = url.split('/')
         parsed_url_query_counter = Counter(parsed_url_query_list)
+        if mydb.is_blacklisted_url(url):
+            return False
         if parsed_url_query_counter.most_common(1)[0][-1] > 3:
             return False
         if 'ics.uci.edu/IRUS' in url:
