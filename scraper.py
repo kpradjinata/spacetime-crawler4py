@@ -40,7 +40,7 @@ def sort_word_map():
 
 def print_subdomains():
     for subdomain, count in subdomains.items():
-        print(subdomain + " " + str(count))
+        print("http://" + subdomain + ".ics.uci.edu" +  ", " +str(count))
 
 def check_longest(soup, href):
     global longest_page_length
@@ -53,29 +53,58 @@ def check_longest(soup, href):
     if num_words > longest_page_length:
         longest_page_length = num_words
         longest_page = href
+        with open("longestpage.txt", "w") as file:
+            file.write(longest_page)
 
     for word in words:
-        if word in word_map:
-            word_map[word] += 1 
+        if word.lower() in word_map:
+            word_map[word.lower()] += 1 
         else:
-            word_map[word] = 1
+            word_map[word.lower()] = 1
+    
+    with open("wordmap.txt", "w") as file:
+            file.write(word_map)
 
 
     #checks subdomains for proper format
     if "ics.uci.edu" in href:
-        print(href)
-        index = href.index('://')
-        if href[index+3:index+7] == "www.":
-            href = href[0:index+3] + href[index+7:]
+        if "://" in href:
+            index = href.index('://')
             domain_index = href.index('ics.uci.edu')
-            subdomain = href[0:domain_index-1]
-        else:
+            if domain_index != index+3:
+                if href[index+3:index+7] == "www.":
+                    href = href[0:index+3] + href[index+7:]
+                    subdomain = href[index+3:domain_index-1]
+                
+                else:
+                    subdomain = href[index+3:domain_index-1]
+        elif ":/" in href:
+            index = href.index(':/')
             domain_index = href.index('ics.uci.edu')
-            subdomain = href[0:domain_index-1]
-        if subdomain in subdomains:
-            subdomains[subdomain] += 1
-        else:
-            subdomains[subdomain] = 1
+            if domain_index != index+2:
+                if href[index+2:index+6] == "www.":
+                    href = href[0:index+2] + href[index+6:]
+                    subdomain = href[index+2:domain_index-1]
+                else:
+                    subdomain = href[index+2:domain_index-1]
+        elif ":" in href:
+            index = href.index(':')
+            domain_index = href.index('ics.uci.edu')
+            if domain_index != index+1:
+                if href[index+1:index+5] == "www.":
+                    href = href[0:index+1] + href[index+5:]
+                    subdomain = href[index+1:domain_index-1]
+                else:
+                    subdomain = href[index+1:domain_index-1]
+
+        if subdomain:
+            if subdomain in subdomains:
+                subdomains[subdomain] += 1
+            else:
+                subdomains[subdomain] = 1
+            
+            with open("subdomains.txt", "w") as file:
+                file.write(subdomains)
 
 def scraper(url, resp):
     links = extract_next_links(url, resp)
@@ -117,7 +146,6 @@ def extract_next_links(url, resp):
         return []
 
     if resp.url in visited:
-        print("Already visited\n\n\n\n\n")
         return []
     visited.add(resp.url)
 
@@ -144,14 +172,17 @@ def extract_next_links(url, resp):
             unique_pages += 1
 
         elif href.startswith("www."):
+            print("www.\n", href)
             href = parse.scheme+'://'+href
             unique_pages += 1
 
         elif href.startswith("/www."):
+            print("/www.\n", href)
             href = parse.scheme+':/'+href
             unique_pages += 1
 
         elif href.startswith("//www."):
+            print("//www.\n", href)
             href = parse.scheme+":"+href
             unique_pages += 1
 
@@ -166,6 +197,8 @@ def extract_next_links(url, resp):
         # check if all whitespace is gone
         # "A word is a basic element of language that carries an objective or practical meaning, can be used on its own, and is uninterruptible" - Wikipedia
         check_longest(soup, href)
+        with open("uniquepages.txt", "w") as file:
+            file.write(unique_pages)
         
 
         
@@ -206,7 +239,7 @@ def is_resp_valid(resp,soup):
 
             # Compute the cosine similarity between the two vectors
             cos = cosine_similarity([vectors[0]], [vectors[1]])
-            if cos[0][0] > 0.9:
+            if cos[0][0] > 0.8:
                 return False
 
         similar.append(content)
