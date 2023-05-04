@@ -59,7 +59,7 @@ def extract_next_links(url, resp):
     
     parsed_url_query_list = (url).split('/')
     parsed_url_query_counter = Counter(parsed_url_query_list)
-    if parsed_url_query_counter[max(parsed_url_query_counter)] > 3:
+    if parsed_url_query_counter.most_common(1)[0][-1] > 3:
         return []
 
     # Parse the HTML content of the webpage using Beautiful Soup
@@ -155,7 +155,7 @@ def is_valid(url):
         parsed = urlparse(url)
         parsed_url_query_list = url.split('/')
         parsed_url_query_counter = Counter(parsed_url_query_list)
-        if parsed_url_query_counter[max(parsed_url_query_counter)] > 3:
+        if parsed_url_query_counter.most_common(1)[0][-1] > 3:
             return False
         
         if parsed.scheme not in set(["http", "https"]):
