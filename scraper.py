@@ -157,6 +157,8 @@ def is_valid(url):
         parsed_url_query_counter = Counter(parsed_url_query_list)
         if parsed_url_query_counter.most_common(1)[0][-1] > 3:
             return False
+        if 'ics.uci.edu/IRUS' in url:
+            return False
         
         if parsed.scheme not in set(["http", "https"]):
             return False
