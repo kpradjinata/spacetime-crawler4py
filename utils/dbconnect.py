@@ -92,7 +92,7 @@ class Sqlite_db:
         vectorizer = TfidfVectorizer()
         vectors = vectorizer.fit_transform(contents)
         similarity = cosine_similarity(vectors[-1], vectors[:-1])
-        if np.amax(similarity) > 0.9:
+        if np.amax(similarity) > 0.8:
             return True
         else:
             return False
